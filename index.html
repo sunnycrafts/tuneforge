@@ -1,0 +1,815 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8"/>
+  <meta name="viewport" content="width=device-width, initial-scale=1.0"/>
+  <meta http-equiv="Content-Security-Policy" content="default-src 'self'; img-src 'self' data: https:; style-src 'self' 'unsafe-inline'; script-src 'self'">
+  <title>TuneForge</title>
+  <style>
+    *, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
+    :root {
+      --bg: #f3f3f3; --surface: #ffffff; --surface2: #fafafa; --hover: rgba(0,0,0,0.04);
+      --border: #e1e1e1; --accent: #0078d4; --accent3: #2899f5; --accent-soft: rgba(31,143,207,0.10);
+      --text: #1a1a1a; --muted: #767676; --danger: #c42b1c; --ok: #0f7b0f; --warn: #9d5d00;
+      --radius: 8px; --shadow: 0 2px 8px rgba(0,0,0,0.06);
+      --mono: 'Cascadia Mono', 'Consolas', monospace; --ui: 'Segoe UI Variable Display', 'Segoe UI', sans-serif;
+    }
+    :root[data-theme="dark"] {
+      --bg: #202020; --surface: #2b2b2b; --surface2: #262626; --hover: rgba(255,255,255,0.05);
+      --border: #3b3b3b; --accent: #2b88d8; --accent3: #60cdff; --accent-soft: rgba(96,205,255,0.12);
+      --text: #f2f2f2; --muted: #a3a3a3; --danger: #ff7a6b; --ok: #6ccb5f; --warn: #fcb045;
+      --shadow: 0 2px 10px rgba(0,0,0,0.3);
+    }
+    body { font-family: var(--ui); background: var(--bg); color: var(--text); height: 100vh; display: flex;
+      flex-direction: column; overflow: hidden; user-select: none; font-size: 13px; }
+    button, input, select, textarea { font-family: inherit; color: inherit; }
+    .hidden { display: none !important; }
+    ::-webkit-scrollbar { width: 6px; height: 6px; }
+    ::-webkit-scrollbar-track { background: transparent; }
+    ::-webkit-scrollbar-thumb { background: var(--border); border-radius: 4px; }
+
+    /* TITLEBAR */
+    #titlebar { display: flex; align-items: center; justify-content: space-between; height: 42px; padding: 0 10px 0 20px;
+      background: var(--bg); border-bottom: 1px solid var(--border); -webkit-app-region: drag; flex-shrink: 0; }
+    .title-left { display: flex; align-items: center; gap: 10px; }
+    .logo { font-size: 13px; font-weight: 800; letter-spacing: 0.12em; color: var(--accent3); text-transform: uppercase; }
+    .logo span { color: var(--muted); }
+    #app-version { -webkit-app-region: no-drag; padding: 2px 8px; border-radius: 999px; border: 1px solid var(--border);
+      background: transparent; color: var(--muted); cursor: pointer; font-family: var(--mono); font-size: 11px; position: relative; }
+    #app-version:hover { border-color: var(--accent3); color: var(--accent3); }
+    #app-version.has-update::after { content: ''; position: absolute; top: -2px; right: -2px; width: 8px; height: 8px;
+      border-radius: 50%; background: var(--danger); }
+    #win-controls { display: flex; gap: 2px; -webkit-app-region: no-drag; }
+    #win-controls button { width: 40px; height: 30px; border-radius: 4px; border: none; background: transparent; color: var(--muted);
+      font-size: 13px; cursor: pointer; display: flex; align-items: center; justify-content: center; transition: background 0.15s, color 0.15s; }
+    #win-controls button:hover { background: var(--hover); color: var(--text); }
+    #win-controls button.close:hover { background: #c42b1c; color: #fff; }
+    #btn-pin.on { color: var(--accent3); background: var(--accent-soft); }
+    #btn-pin svg { width: 14px; height: 14px; }
+
+    /* UPDATE BANNER */
+    #update-banner { display: flex; align-items: center; gap: 12px; padding: 8px 20px; background: var(--accent-soft);
+      border-bottom: 1px solid var(--border); font-size: 12px; flex-shrink: 0; }
+    #update-banner strong { color: var(--accent3); }
+    #update-banner .spacer { flex: 1; }
+    .link-btn { background: none; border: none; color: var(--accent3); cursor: pointer; font-size: 12px; font-weight: 600; padding: 2px 4px; }
+    .link-btn:hover { text-decoration: underline; }
+
+    /* TABS */
+    #tabs { display: flex; gap: 3px; padding: 12px 20px 0; flex-shrink: 0; align-items: center; }
+    .tab-btn { padding: 7px 18px; border-radius: 999px; border: 1px solid transparent; background: transparent; color: var(--muted);
+      font-size: 12px; font-weight: 700; letter-spacing: 0.04em; cursor: pointer; transition: all 0.15s; position: relative; }
+    .tab-btn.active { background: var(--surface); color: var(--text); border-color: var(--accent3); box-shadow: 0 2px 8px rgba(31,143,207,0.12); }
+    .tab-btn:hover:not(.active) { color: var(--text); background: var(--hover); }
+    .tab-badge { display: inline-block; min-width: 18px; padding: 0 5px; margin-left: 6px; border-radius: 999px; background: var(--accent3);
+      color: #fff; font-size: 10px; line-height: 16px; text-align: center; font-family: var(--mono); }
+    :root[data-theme="dark"] .tab-badge { color: #000; }
+    .tab-badge:empty { display: none; }
+
+    #app { flex: 1; overflow: hidden; display: flex; flex-direction: column; padding: 10px 20px 16px; min-height: 0; }
+    .tab-panel { display: none; flex: 1; min-height: 0; flex-direction: column; gap: 12px; }
+    .tab-panel.active { display: flex; }
+
+    /* STEP LABELS & CARDS */
+    .step-label { display: flex; align-items: center; gap: 9px; flex-shrink: 0; }
+    .step-num { display: flex; align-items: center; justify-content: center; width: 19px; height: 19px; border-radius: 50%;
+      background: var(--accent3); color: #fff; font-size: 11px; font-weight: 700; font-family: var(--mono); flex-shrink: 0; }
+    :root[data-theme="dark"] .step-num { color: #000; }
+    .step-label h3 { font-size: 15px; font-weight: 600; letter-spacing: -0.01em; }
+    .step-hint { font-size: 12px; color: var(--muted); font-family: var(--mono); margin-left: auto; }
+    .card { background: var(--surface); border: 1px solid var(--border); border-radius: 10px; padding: 14px; }
+    .section-title { font-size: 11px; font-weight: 700; letter-spacing: 0.08em; text-transform: uppercase; color: var(--muted); }
+
+    /* BUTTONS */
+    .btn { display: inline-flex; align-items: center; gap: 6px; padding: 8px 16px; background: var(--accent); color: #fff; font-weight: 700;
+      font-size: 12px; letter-spacing: 0.03em; border-radius: var(--radius); cursor: pointer; border: 1px solid transparent;
+      transition: opacity 0.15s, transform 0.1s, background 0.15s; white-space: nowrap; }
+    .btn:hover:not(:disabled) { opacity: 0.88; transform: translateY(-1px); }
+    .btn:disabled { opacity: 0.35; cursor: not-allowed; }
+    .btn.secondary { background: transparent; color: var(--accent3); border-color: var(--accent3); }
+    .btn.secondary:hover:not(:disabled) { background: var(--accent-soft); opacity: 1; }
+    .btn.ghost { background: transparent; color: var(--muted); border-color: var(--border); font-weight: 600; }
+    .btn.ghost:hover:not(:disabled) { color: var(--text); border-color: var(--accent3); opacity: 1; }
+    .btn.danger { background: var(--danger); }
+    .btn.ok { background: #10893e; }
+    .btn.small { padding: 4px 10px; font-size: 11px; }
+    .mini-btn { font-size: 11px; font-family: var(--mono); padding: 3px 9px; border-radius: 4px; border: 1px solid var(--border);
+      background: transparent; color: var(--muted); cursor: pointer; transition: all 0.15s; white-space: nowrap; }
+    .mini-btn:hover { border-color: var(--accent3); color: var(--accent3); }
+    .mini-btn.danger:hover { border-color: var(--danger); color: var(--danger); }
+
+    /* FORM CONTROLS */
+    .field { display: flex; flex-direction: column; gap: 5px; }
+    .field-label { font-size: 11px; font-weight: 700; letter-spacing: 0.06em; text-transform: uppercase; color: var(--muted);
+      display: flex; align-items: center; gap: 5px; }
+    .select, .input { font-size: 12px; background: var(--surface2); border: 1px solid var(--border); border-radius: 6px;
+      padding: 6px 10px; transition: border-color 0.15s; width: 100%; }
+    .select { appearance: none; cursor: pointer; padding-right: 28px;
+      background-image: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='10' height='6'%3E%3Cpath d='M0 0l5 6 5-6z' fill='%23888'/%3E%3C/svg%3E");
+      background-repeat: no-repeat; background-position: right 10px center; }
+    .select option { background: var(--surface); color: var(--text); }
+    .input.mono { font-family: var(--mono); }
+    .select:focus, .input:focus { outline: none; border-color: var(--accent3); }
+    .grid2 { display: grid; grid-template-columns: 1fr 1fr; gap: 10px 12px; }
+    .check { display: flex; align-items: center; gap: 7px; cursor: pointer; font-size: 12px; color: var(--muted); user-select: none; }
+    .check input { accent-color: var(--accent3); cursor: pointer; width: 14px; height: 14px; flex-shrink: 0; }
+    .check:hover { color: var(--text); }
+    .check.on { color: var(--text); }
+    .checks { display: flex; flex-direction: column; gap: 8px; }
+    .seg { display: flex; background: var(--surface2); border: 1px solid var(--border); border-radius: 6px; padding: 2px; gap: 2px; }
+    .seg button { flex: 1; border: none; background: transparent; padding: 5px 8px; border-radius: 4px; font-size: 12px; font-weight: 600;
+      color: var(--muted); cursor: pointer; }
+    .seg button.active { background: var(--surface); color: var(--text); box-shadow: var(--shadow); }
+    input[type="range"] { accent-color: var(--accent3); cursor: pointer; }
+
+    /* INFO TIP ICON + FLOATING TIP */
+    .info { display: inline-flex; align-items: center; justify-content: center; width: 14px; height: 14px; border-radius: 50%;
+      border: 1px solid var(--muted); color: var(--muted); font-size: 9px; font-weight: 700; font-family: var(--ui); cursor: help;
+      text-transform: none; letter-spacing: 0; flex-shrink: 0; }
+    .info:hover { border-color: var(--accent3); color: var(--accent3); }
+    #tip { position: fixed; z-index: 500; max-width: 320px; padding: 9px 12px; background: var(--surface); color: var(--text);
+      border: 1px solid var(--border); border-radius: 8px; box-shadow: 0 8px 24px rgba(0,0,0,0.18); font-size: 12px; line-height: 1.5;
+      pointer-events: none; opacity: 0; transform: translateY(3px); transition: opacity 0.12s, transform 0.12s; white-space: pre-line; }
+    #tip.show { opacity: 1; transform: translateY(0); }
+    #tip strong { color: var(--accent3); }
+
+    /* DROP ZONE */
+    .drop-zone { border: 2px dashed var(--border); border-radius: 10px; padding: 12px 16px; cursor: pointer; flex-shrink: 0;
+      display: flex; align-items: center; gap: 14px; transition: border-color 0.2s, background 0.2s; }
+    .drop-zone.drag-over { border-color: var(--accent); background: rgba(0,120,212,0.08); }
+    .drop-icon { font-size: 22px; flex-shrink: 0; }
+    .drop-copy { flex: 1; min-width: 0; }
+    .drop-copy h2 { font-size: 14px; font-weight: 700; margin-bottom: 1px; }
+    .drop-copy p { font-size: 11px; color: var(--muted); font-family: var(--mono); white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+
+    /* CONVERT LAYOUT */
+    #tab-convert { flex-direction: row; gap: 16px; }
+    .conv-left { flex: 1; min-width: 0; display: flex; flex-direction: column; gap: 12px; min-height: 0; }
+    .conv-right { width: 360px; flex-shrink: 0; display: flex; flex-direction: column; gap: 10px; min-height: 0; }
+    .conv-settings-scroll { flex: 1; overflow-y: auto; display: flex; flex-direction: column; gap: 10px; padding-right: 4px; min-height: 0; }
+    .panel { background: var(--surface); border: 1px solid var(--border); border-radius: 10px; }
+    .panel > summary { list-style: none; cursor: pointer; padding: 11px 14px; display: flex; align-items: center; gap: 8px;
+      font-size: 13px; font-weight: 700; }
+    .panel > summary::-webkit-details-marker { display: none; }
+    .panel > summary::before { content: '›'; color: var(--muted); font-size: 16px; transition: transform 0.15s; width: 10px; }
+    .panel[open] > summary::before { transform: rotate(90deg); }
+    .panel > summary .sum-note { margin-left: auto; font-size: 11px; font-weight: 600; color: var(--muted); font-family: var(--mono);
+      max-width: 170px; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+    .panel-body { padding: 2px 14px 14px; display: flex; flex-direction: column; gap: 12px; }
+
+    .preset-row { display: flex; gap: 6px; flex-wrap: wrap; }
+    .preset-btn { padding: 5px 11px; border-radius: 999px; border: 1px solid var(--border); background: var(--surface); color: var(--muted);
+      font-size: 12px; font-weight: 600; cursor: pointer; transition: all 0.15s; white-space: nowrap; position: relative; }
+    .preset-btn.active { background: var(--accent3); color: #fff; border-color: var(--accent3); }
+    :root[data-theme="dark"] .preset-btn.active { color: #000; }
+    .preset-btn:hover:not(.active) { border-color: var(--accent3); color: var(--text); }
+    .preset-btn .del { margin-left: 6px; opacity: 0.6; }
+    .preset-btn .del:hover { opacity: 1; color: var(--danger); }
+    .preset-btn.add { border-style: dashed; }
+
+    .fmt-blurb { font-size: 12px; color: var(--muted); line-height: 1.45; display: flex; gap: 8px; align-items: flex-start; }
+    .badge { display: inline-block; font-size: 10px; font-weight: 700; letter-spacing: 0.04em; padding: 2px 7px; border-radius: 999px;
+      white-space: nowrap; font-family: var(--mono); }
+    .badge.ok { background: rgba(16,137,62,0.12); color: var(--ok); }
+    .badge.no { background: rgba(196,43,28,0.10); color: var(--danger); }
+    .badge.info { background: var(--accent-soft); color: var(--accent3); }
+    .badge.warn { background: rgba(157,93,0,0.12); color: var(--warn); }
+    .badge.muted { background: var(--hover); color: var(--muted); }
+
+    .quality-row { display: flex; align-items: center; gap: 8px; }
+    .quality-row input[type="range"] { flex: 1; }
+    .quality-row .input { width: 56px; text-align: right; font-family: var(--mono); }
+    .quality-explain { font-size: 12px; line-height: 1.5; background: var(--accent-soft); border-radius: 6px; padding: 9px 11px; color: var(--text); }
+    .quality-explain.lossless { background: rgba(16,137,62,0.10); }
+    .quality-scale { display: flex; justify-content: space-between; font-size: 10px; color: var(--muted); font-family: var(--mono); margin-top: -4px; }
+    .note { font-size: 11px; color: var(--muted); line-height: 1.45; }
+    .note.warn { color: var(--warn); }
+    .example { font-family: var(--mono); font-size: 11px; color: var(--text); background: var(--surface2); border: 1px solid var(--border);
+      border-radius: 6px; padding: 7px 9px; word-break: break-all; line-height: 1.5; user-select: text; }
+    .example span { color: var(--muted); }
+    .path-row { display: flex; gap: 6px; align-items: center; }
+    .path-row .input { flex: 1; min-width: 0; font-family: var(--mono); font-size: 11px; cursor: pointer; }
+
+    /* LISTS */
+    .list-wrap { flex: 1; overflow: hidden; display: flex; flex-direction: column; gap: 8px; min-height: 0; }
+    .list-header { display: flex; align-items: center; gap: 8px; flex-shrink: 0; }
+    .list-header .section-title { margin-right: auto; }
+    .scroll-list { list-style: none; overflow-y: auto; flex: 1; display: flex; flex-direction: column; gap: 5px; padding-right: 4px; min-height: 0; }
+    .empty-state { text-align: center; padding: 22px 24px; color: var(--muted); display: flex; flex-direction: column; align-items: center;
+      justify-content: center; gap: 5px; height: 100%; }
+    .empty-icon { font-size: 30px; opacity: 0.35; margin-bottom: 4px; }
+    .empty-title { font-size: 14px; font-weight: 700; color: var(--text); opacity: 0.6; }
+    .empty-sub { font-size: 12px; font-family: var(--mono); line-height: 1.6; }
+
+    .file-item { display: flex; align-items: center; gap: 10px; background: var(--surface); border: 1px solid var(--border);
+      border-radius: var(--radius); padding: 7px 10px; animation: fadeSlide 0.2s ease; position: relative; overflow: hidden; }
+    @keyframes fadeSlide { from { opacity: 0; transform: translateY(5px); } to { opacity: 1; transform: translateY(0); } }
+    .thumb { width: 42px; height: 42px; border-radius: 5px; background: var(--surface2); border: 1px solid var(--border); flex-shrink: 0;
+      display: flex; align-items: center; justify-content: center; font-size: 18px; overflow: hidden; color: var(--muted); }
+    .thumb img { width: 100%; height: 100%; object-fit: cover; }
+    .file-info { flex: 1; min-width: 0; }
+    .file-name { font-size: 13px; font-weight: 700; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+    .file-tags { font-size: 12px; color: var(--text); opacity: 0.8; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; margin-top: 1px; }
+    .file-tags.missing { color: var(--warn); opacity: 1; }
+    .file-meta { font-size: 11px; font-family: var(--mono); color: var(--muted); margin-top: 2px; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+    .row-actions { display: flex; gap: 4px; flex-shrink: 0; }
+    .status { font-size: 11px; font-family: var(--mono); padding: 2px 8px; border-radius: 999px; font-weight: 700; flex-shrink: 0; white-space: nowrap; }
+    .status.pending { background: var(--hover); color: var(--muted); }
+    .status.working { background: rgba(0,120,212,0.14); color: var(--accent3); }
+    .status.done { background: rgba(16,137,62,0.12); color: var(--ok); cursor: pointer; }
+    .status.skipped { background: rgba(157,93,0,0.12); color: var(--warn); }
+    .status.error { background: rgba(196,43,28,0.10); color: var(--danger); cursor: help; }
+    .row-progress { position: absolute; left: 0; bottom: 0; height: 2px; background: var(--accent3); transition: width 0.25s; }
+    .remove-btn { background: none; border: none; color: var(--muted); font-size: 13px; cursor: pointer; padding: 2px 5px; border-radius: 3px; }
+    .remove-btn:hover { color: var(--danger); }
+    .icon-btn { background: none; border: 1px solid transparent; color: var(--muted); font-size: 13px; cursor: pointer; padding: 3px 6px; border-radius: 4px; }
+    .icon-btn:hover { color: var(--accent3); border-color: var(--border); }
+
+    .totals { display: flex; gap: 16px; flex-wrap: wrap; padding: 8px 12px; background: var(--surface2); border: 1px solid var(--border);
+      border-radius: var(--radius); font-family: var(--mono); font-size: 11px; color: var(--muted); flex-shrink: 0; }
+    .totals strong { color: var(--text); }
+    .totals .warn { color: var(--warn); }
+
+    /* CONVERT FOOTER */
+    .conv-footer { display: flex; flex-direction: column; gap: 8px; flex-shrink: 0; }
+    .go-row { display: flex; gap: 10px; align-items: stretch; }
+    .go-status { flex: 1; min-width: 0; display: flex; flex-direction: column; justify-content: center; gap: 6px; }
+    .status-line { font-size: 12px; color: var(--muted); font-family: var(--mono); white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+    .status-line.ready { color: var(--accent3); }
+    .big-btn { padding: 0 26px; min-width: 170px; height: 48px; background: var(--accent); color: #fff; border: none; border-radius: var(--radius);
+      font-size: 14px; font-weight: 800; letter-spacing: 0.03em; cursor: pointer; box-shadow: 0 2px 10px rgba(0,120,212,0.25);
+      transition: opacity 0.15s, transform 0.1s, box-shadow 0.15s; white-space: nowrap; }
+    .big-btn:hover:not(:disabled) { opacity: 0.9; transform: translateY(-1px); box-shadow: 0 4px 16px rgba(0,120,212,0.35); }
+    .big-btn:disabled { opacity: 0.3; cursor: not-allowed; box-shadow: none; }
+    .big-btn.stop { background: var(--danger); box-shadow: 0 2px 10px rgba(196,43,28,0.25); }
+    .progress-track { height: 6px; background: var(--border); border-radius: 4px; overflow: hidden; }
+    .progress-fill { height: 100%; width: 0%; background: var(--accent3); border-radius: 4px; transition: width 0.3s ease; }
+    .progress-stats { display: flex; justify-content: space-between; font-size: 11px; font-family: var(--mono); color: var(--muted); }
+    .progress-stats strong { color: var(--text); }
+
+    /* TAG FIXER */
+    #tab-tags { gap: 12px; }
+    .tag-toolbar { display: flex; gap: 8px; align-items: center; flex-wrap: wrap; flex-shrink: 0; }
+    .tag-toolbar .spacer { flex: 1; }
+    .tag-body { flex: 1; display: flex; gap: 14px; min-height: 0; }
+    .tag-list-col { width: 340px; flex-shrink: 0; display: flex; flex-direction: column; gap: 8px; min-height: 0; }
+    .tag-item { cursor: pointer; padding: 6px 9px; }
+    .tag-item:hover { border-color: var(--accent3); }
+    .tag-item.selected { border-color: var(--accent3); background: var(--accent-soft); }
+    .tag-item .thumb { width: 36px; height: 36px; font-size: 15px; }
+    .tag-detail { flex: 1; min-width: 0; overflow-y: auto; display: flex; flex-direction: column; gap: 12px; padding-right: 4px; }
+    .verdict { display: flex; gap: 12px; align-items: center; padding: 12px 14px; border-radius: 10px; border: 1px solid var(--accent3);
+      background: var(--accent-soft); }
+    .verdict.none { border-color: var(--border); background: var(--surface); }
+    .verdict.saved { border-color: var(--ok); background: rgba(16,137,62,0.08); }
+    .verdict .v-text { flex: 1; min-width: 0; font-size: 13px; line-height: 1.5; }
+    .verdict .v-text strong { font-weight: 700; }
+    .verdict .v-sub { font-size: 11px; color: var(--muted); font-family: var(--mono); }
+    .conf { font-family: var(--mono); font-weight: 800; font-size: 18px; color: var(--accent3); min-width: 54px; text-align: center; }
+    .conf small { display: block; font-size: 9px; font-weight: 600; color: var(--muted); letter-spacing: 0.06em; text-transform: uppercase; }
+    .conf.high { color: var(--ok); } .conf.mid { color: var(--warn); } .conf.low { color: var(--danger); }
+    .detail-grid { display: grid; grid-template-columns: 220px 1fr; gap: 14px; }
+    .cover-big { width: 220px; height: 220px; border-radius: 8px; border: 1px solid var(--border); background: var(--surface2); overflow: hidden;
+      display: flex; align-items: center; justify-content: center; color: var(--muted); font-size: 46px; position: relative; }
+    .cover-big img { width: 100%; height: 100%; object-fit: cover; }
+    .cover-big .cover-caption { position: absolute; left: 0; right: 0; bottom: 0; padding: 4px 8px; background: rgba(0,0,0,0.55); color: #fff;
+      font-size: 10px; font-family: var(--mono); white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+    .cover-options { display: grid; grid-template-columns: repeat(4, 1fr); gap: 6px; margin-top: 8px; }
+    .cover-opt { aspect-ratio: 1; border-radius: 5px; border: 2px solid transparent; overflow: hidden; cursor: pointer; background: var(--surface2);
+      display: flex; align-items: center; justify-content: center; font-size: 11px; color: var(--muted); text-align: center; line-height: 1.2; position: relative; }
+    .cover-opt img { width: 100%; height: 100%; object-fit: cover; }
+    .cover-opt.selected { border-color: var(--accent3); }
+    .cover-opt:hover:not(.selected) { border-color: var(--border); }
+    .cover-opt .kind { position: absolute; top: 2px; left: 2px; font-size: 9px; background: rgba(0,0,0,0.6); color: #fff; padding: 0 4px; border-radius: 3px; }
+    .field-table { width: 100%; border-collapse: collapse; }
+    .field-table th { text-align: left; font-size: 10px; letter-spacing: 0.07em; text-transform: uppercase; color: var(--muted); font-weight: 700;
+      padding: 0 6px 6px; }
+    .field-table td { padding: 3px 6px; vertical-align: middle; font-size: 12px; }
+    .field-table td.fname { width: 92px; color: var(--muted); font-weight: 600; white-space: nowrap; }
+    .field-table td.cur { width: 38%; color: var(--muted); max-width: 0; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+    .field-table td.cur.empty { font-style: italic; opacity: 0.6; }
+    .field-table tr.changed .input { border-color: var(--accent3); background: var(--accent-soft); }
+    .field-table tr.changed td.fname { color: var(--accent3); }
+    .cand-list { display: flex; flex-direction: column; gap: 4px; }
+    .cand { display: flex; align-items: center; gap: 10px; padding: 6px 8px; border: 1px solid var(--border); border-radius: 6px; cursor: pointer;
+      background: var(--surface); }
+    .cand:hover { border-color: var(--accent3); }
+    .cand.active { border-color: var(--accent3); background: var(--accent-soft); }
+    .cand img, .cand .noimg { width: 34px; height: 34px; border-radius: 4px; object-fit: cover; flex-shrink: 0; background: var(--surface2); }
+    .cand .c-main { flex: 1; min-width: 0; }
+    .cand .c-title { font-size: 12px; font-weight: 700; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+    .cand .c-sub { font-size: 11px; color: var(--muted); white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+    .cand .c-score { font-family: var(--mono); font-size: 11px; font-weight: 700; color: var(--muted); }
+    .search-row { display: flex; gap: 6px; }
+    .search-row .input { flex: 1; }
+    .detail-actions { display: flex; gap: 8px; align-items: center; position: sticky; bottom: 0; background: var(--bg); padding: 8px 0 2px;
+      border-top: 1px solid var(--border); }
+    .detail-actions .spacer { flex: 1; }
+
+    /* HISTORY */
+    .hist-toolbar { display: flex; gap: 8px; align-items: center; flex-wrap: wrap; flex-shrink: 0; }
+    .chip { padding: 5px 12px; border-radius: 999px; border: 1px solid var(--border); background: var(--surface); color: var(--muted);
+      font-size: 12px; font-weight: 600; cursor: pointer; }
+    .chip.active { border-color: var(--accent3); color: var(--accent3); background: var(--accent-soft); }
+    .chip .n { font-family: var(--mono); font-size: 10px; margin-left: 4px; opacity: 0.8; }
+    .hist-row { background: var(--surface); border: 1px solid var(--border); border-radius: 6px; padding: 7px 11px; display: flex; gap: 10px;
+      align-items: flex-start; cursor: default; }
+    .hist-row.has-detail { cursor: pointer; }
+    .hist-row .h-icon { width: 18px; text-align: center; flex-shrink: 0; }
+    .hist-row .h-main { flex: 1; min-width: 0; }
+    .hist-row .h-msg { font-size: 12px; font-weight: 600; word-break: break-word; }
+    .hist-row .h-detail { font-family: var(--mono); font-size: 11px; color: var(--muted); white-space: pre-wrap; margin-top: 5px; user-select: text;
+      word-break: break-all; display: none; }
+    .hist-row.open .h-detail { display: block; }
+    .hist-row .h-time { font-family: var(--mono); font-size: 11px; color: var(--muted); white-space: nowrap; }
+    .hist-row.error { border-left: 3px solid var(--danger); }
+    .hist-row.update { border-left: 3px solid var(--accent3); }
+    .hist-day { font-size: 11px; font-weight: 700; letter-spacing: 0.08em; text-transform: uppercase; color: var(--muted); padding: 8px 2px 2px; }
+
+    /* GUIDE & SETTINGS */
+    .doc-scroll { flex: 1; overflow-y: auto; padding-right: 6px; }
+    .doc { max-width: 860px; display: flex; flex-direction: column; gap: 12px; padding-bottom: 20px; }
+    .doc .card h3 { font-size: 15px; margin-bottom: 8px; display: flex; align-items: center; gap: 8px; }
+    .doc .card p, .doc .card li { font-size: 13px; line-height: 1.6; color: var(--text); user-select: text; }
+    .doc .card p + p { margin-top: 8px; }
+    .doc .card ul { margin: 6px 0 0 20px; }
+    .doc .card li + li { margin-top: 3px; }
+    .doc table { width: 100%; border-collapse: collapse; margin-top: 6px; font-size: 12px; user-select: text; }
+    .doc th { text-align: left; font-size: 10px; letter-spacing: 0.07em; text-transform: uppercase; color: var(--muted); padding: 6px 8px;
+      border-bottom: 1px solid var(--border); }
+    .doc td { padding: 6px 8px; border-bottom: 1px solid var(--border); vertical-align: top; line-height: 1.45; }
+    .doc tr:last-child td { border-bottom: none; }
+    .doc code { font-family: var(--mono); font-size: 12px; background: var(--surface2); border: 1px solid var(--border); border-radius: 4px; padding: 0 4px; }
+    .guide-nav { display: flex; gap: 6px; flex-wrap: wrap; flex-shrink: 0; }
+    .set-row { display: flex; align-items: center; gap: 14px; padding: 10px 0; border-bottom: 1px solid var(--border); }
+    .set-row:last-child { border-bottom: none; padding-bottom: 0; }
+    .set-row:first-of-type { padding-top: 0; }
+    .set-row .set-text { flex: 1; min-width: 0; }
+    .set-row .set-name { font-size: 13px; font-weight: 600; }
+    .set-row .set-desc { font-size: 12px; color: var(--muted); margin-top: 2px; line-height: 1.45; }
+    .set-row .set-ctl { flex-shrink: 0; display: flex; gap: 6px; align-items: center; }
+    .set-row .set-ctl .select { width: 170px; }
+    .set-row .set-ctl .input { width: 280px; }
+    .switch { position: relative; width: 40px; height: 20px; flex-shrink: 0; }
+    .switch input { opacity: 0; width: 0; height: 0; }
+    .switch span { position: absolute; inset: 0; border-radius: 999px; border: 1px solid var(--muted); background: transparent; cursor: pointer; transition: all 0.15s; }
+    .switch span::after { content: ''; position: absolute; width: 12px; height: 12px; left: 3px; top: 3px; border-radius: 50%; background: var(--muted); transition: all 0.15s; }
+    .switch input:checked + span { background: var(--accent); border-color: var(--accent); }
+    .switch input:checked + span::after { left: 23px; background: #fff; }
+
+    /* MODALS */
+    .overlay { display: none; position: fixed; inset: 0; background: rgba(20,18,12,0.5); z-index: 300; align-items: center; justify-content: center; }
+    .overlay.active { display: flex; }
+    .modal { background: var(--surface); border: 1px solid var(--border); border-radius: 12px; width: min(560px, 90vw); max-height: 82vh;
+      display: flex; flex-direction: column; overflow: hidden; box-shadow: 0 16px 48px rgba(0,0,0,0.3); }
+    .modal header { display: flex; align-items: center; justify-content: space-between; padding: 14px 18px; border-bottom: 1px solid var(--border);
+      font-size: 14px; font-weight: 700; }
+    .modal header button { border: none; background: transparent; color: var(--muted); font-size: 15px; cursor: pointer; }
+    .modal .m-body { padding: 14px 18px; overflow-y: auto; font-size: 13px; line-height: 1.55; user-select: text; }
+    .modal .m-foot { padding: 12px 18px; border-top: 1px solid var(--border); display: flex; gap: 8px; justify-content: flex-end; }
+    .cl h4 { font-size: 14px; margin: 14px 0 4px; color: var(--accent3); }
+    .cl h4:first-child { margin-top: 0; }
+    .cl h5 { font-size: 11px; letter-spacing: 0.08em; text-transform: uppercase; color: var(--muted); margin: 8px 0 2px; }
+    .cl li { margin-left: 18px; }
+
+    /* TOAST */
+    #toast { position: fixed; bottom: 24px; left: 50%; transform: translateX(-50%) translateY(80px); background: var(--surface);
+      border: 1px solid var(--border); border-radius: 8px; padding: 11px 20px; font-size: 12px; font-weight: 600; box-shadow: var(--shadow);
+      transition: transform 0.3s ease, opacity 0.3s; opacity: 0; z-index: 400; max-width: 80vw; }
+    #toast.show { transform: translateX(-50%) translateY(0); opacity: 1; }
+    #toast.success { border-color: var(--ok); color: var(--ok); }
+    #toast.error { border-color: var(--danger); color: var(--danger); }
+  </style>
+</head>
+<body>
+
+<div id="titlebar">
+  <div class="title-left">
+    <div class="logo">Tune<span>Forge</span></div>
+    <button id="app-version" data-tip="Version history: what changed, and update status">v…</button>
+  </div>
+  <div id="win-controls">
+    <button id="btn-theme" data-tip="Switch between light and dark mode">☀</button>
+    <button id="btn-pin" data-tip="Keep TuneForge on top of other windows">
+      <svg viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.4"><path d="M9.5 1.5l5 5-2 .8-2.6 2.6-.3 3.1-1.6 1.6L5.4 11 2 14.4M5.4 11L1.4 7l1.6-1.6 3.1-.3L8.7 2.5z"/></svg>
+    </button>
+    <button id="btn-min" data-tip="Minimise">&#x2013;</button>
+    <button id="btn-max" data-tip="Maximise">&#x25A1;</button>
+    <button id="btn-close" class="close" data-tip="Close">&#x2715;</button>
+  </div>
+</div>
+
+<div id="update-banner" class="hidden">
+  <span>🎉 <strong id="ub-version">TuneForge</strong> is available. You have <span id="ub-current"></span>.</span>
+  <button class="link-btn" id="ub-notes">What's new</button>
+  <button class="link-btn" id="ub-download">Download</button>
+  <span class="spacer"></span>
+  <button class="link-btn" id="ub-close" style="color:var(--muted)">✕</button>
+</div>
+
+<div id="tabs">
+  <button class="tab-btn active" data-tab="convert">🔄 Convert</button>
+  <button class="tab-btn" data-tab="tags">🏷️ Tag Fixer<span class="tab-badge" id="tags-badge"></span></button>
+  <button class="tab-btn" data-tab="history">🕘 History<span class="tab-badge" id="hist-badge" style="background:var(--danger)"></span></button>
+  <button class="tab-btn" data-tab="guide">📖 Guide</button>
+  <button class="tab-btn" data-tab="settings">⚙️ Settings</button>
+</div>
+
+<div id="app">
+
+  <!-- ══ CONVERT ══ -->
+  <div class="tab-panel active" id="tab-convert">
+    <div class="conv-left">
+      <div class="step-label"><span class="step-num">1</span><h3>Add Audio</h3><span class="step-hint">files or whole folders</span></div>
+      <div class="drop-zone" id="conv-drop">
+        <div class="drop-icon">🎵</div>
+        <div class="drop-copy">
+          <h2>Drop audio files or folders here</h2>
+          <p>MP3 · M4A · FLAC · WAV · AIFF · OGG · OPUS · WMA · ALAC · APE · WV · and video files (audio is pulled out)</p>
+        </div>
+        <button class="btn" id="conv-add-files">Browse Files</button>
+        <button class="btn secondary" id="conv-add-folder">Add Folder</button>
+      </div>
+
+      <div class="step-label"><span class="step-num">2</span><h3>Queue</h3><span class="step-hint" id="conv-hint">tags and album art are read from each file</span></div>
+      <div class="list-wrap">
+        <div class="list-header">
+          <span class="section-title" id="conv-title">Queue — 0 files</span>
+          <button class="mini-btn" id="conv-to-tags" data-tip="Open the files in the queue (converted copies where finished) in the Tag Fixer">Send to Tag Fixer</button>
+          <button class="mini-btn" id="conv-clear-done">Clear finished</button>
+          <button class="mini-btn danger" id="conv-clear">Clear all</button>
+        </div>
+        <ul class="scroll-list" id="conv-list"></ul>
+        <div class="totals hidden" id="conv-totals"></div>
+      </div>
+
+      <div class="conv-footer">
+        <div class="go-row">
+          <div class="go-status">
+            <div class="status-line" id="conv-status">Add some audio to get started</div>
+            <div id="conv-progress" class="hidden">
+              <div class="progress-track"><div class="progress-fill" id="conv-progress-fill"></div></div>
+              <div class="progress-stats" style="margin-top:5px"><span>Elapsed <strong id="conv-elapsed">0:00</strong></span><span id="conv-count"></span><span>Left <strong id="conv-left">—</strong></span></div>
+            </div>
+          </div>
+          <button class="big-btn" id="conv-go" disabled>Convert All</button>
+        </div>
+      </div>
+    </div>
+
+    <div class="conv-right">
+      <div class="step-label"><span class="step-num">3</span><h3>Choose Output</h3>
+        <span class="step-hint"><button class="mini-btn" id="preset-save" data-tip="Save the current format, quality and sound settings as your own preset">★ Save preset</button></span></div>
+      <div class="conv-settings-scroll">
+        <div class="card" style="padding:12px">
+          <div class="field-label" style="margin-bottom:8px">Presets <span class="info" data-tip="One click sets format, quality and sound options. Output folder and naming are left alone.&#10;&#10;Hover a preset to see what it is for. Save your own with ★ Save preset.">i</span></div>
+          <div class="preset-row" id="preset-row"></div>
+        </div>
+
+        <details class="panel" open id="p-format">
+          <summary>Format &amp; quality <span class="sum-note" id="sum-format"></span></summary>
+          <div class="panel-body">
+            <div class="field">
+              <label class="field-label">Format <span class="info" data-tip="The kind of file you get.&#10;&#10;Lossy (MP3, AAC, Opus, Ogg) throws away sound you can't hear to make small files.&#10;Lossless (FLAC, ALAC) keeps every bit, about half the size of WAV.&#10;Uncompressed (WAV, AIFF) is the raw audio, the biggest.&#10;&#10;For iTunes pick AAC, Apple Lossless, MP3 or AIFF.">i</span></label>
+              <select class="select" id="s-format"></select>
+            </div>
+            <div class="fmt-blurb"><span id="fmt-blurb"></span></div>
+            <div class="field" id="f-mode">
+              <label class="field-label">Bitrate mode <span class="info" data-tip="VBR (variable) gives more bits to complex parts of the song and fewer to simple parts. Better sound for the size: the usual choice.&#10;&#10;CBR (constant) uses the same bitrate everywhere. Only pick it if an old player or a website asks for a fixed bitrate.">i</span></label>
+              <div class="seg" id="s-mode"><button data-v="vbr">VBR (recommended)</button><button data-v="cbr">CBR</button></div>
+            </div>
+            <div class="field" id="f-quality">
+              <label class="field-label">Quality <span class="info" data-tip="0 = smallest file, 100 = best sound. The box below says exactly what the number means for the format you picked.&#10;&#10;Important: quality can't be added back. Turning a 128 kbps MP3 into a 320 kbps file makes it bigger, not better.">i</span></label>
+              <div class="quality-row">
+                <input type="range" id="s-quality" min="0" max="100" step="1">
+                <input type="number" class="input" id="s-quality-num" min="0" max="100" step="1">
+              </div>
+              <div class="quality-scale"><span>smaller file</span><span>better sound</span></div>
+            </div>
+            <div class="quality-explain" id="quality-explain"></div>
+            <div class="field hidden" id="f-flac">
+              <label class="field-label">FLAC compression <span class="info" data-tip="Every level sounds identical: FLAC is always a perfect copy.&#10;Higher levels make slightly smaller files and take a bit longer to convert. 5 is the standard; 8 saves maybe 2–3% more.">i</span></label>
+              <select class="select" id="s-flac">
+                <option value="0">0 · fastest, biggest</option><option value="3">3</option><option value="5">5 · standard</option><option value="8">8 · smallest</option><option value="12">12 · slowest (non-standard)</option>
+              </select>
+            </div>
+          </div>
+        </details>
+
+        <details class="panel" id="p-sound">
+          <summary>Sound <span class="sum-note" id="sum-sound"></span></summary>
+          <div class="panel-body">
+            <div class="grid2">
+              <div class="field">
+                <label class="field-label">Sample rate <span class="info" data-tip="How many times per second the sound is measured.&#10;44.1 kHz = CD and iTunes. 48 kHz = video.&#10;Higher rates only matter for studio work: nobody can hear above 44.1 kHz in a finished song.&#10;&#10;'Keep' leaves it as the source has it (MP3 and Opus cap it at 48 kHz on their own).">i</span></label>
+                <select class="select" id="s-rate">
+                  <option value="keep">Keep</option><option value="22050">22.05 kHz</option><option value="32000">32 kHz</option><option value="44100">44.1 kHz (CD)</option>
+                  <option value="48000">48 kHz</option><option value="88200">88.2 kHz</option><option value="96000">96 kHz</option><option value="192000">192 kHz</option>
+                </select>
+              </div>
+              <div class="field">
+                <label class="field-label">Channels <span class="info" data-tip="Stereo = two speakers. Mono = one; halves the size of lossless files and is right for voice recordings and audiobooks.&#10;'Keep' leaves it as is (surround is folded to stereo for MP3 and WMA).">i</span></label>
+                <select class="select" id="s-channels"><option value="keep">Keep</option><option value="1">Mono</option><option value="2">Stereo</option><option value="6">5.1 surround</option></select>
+              </div>
+              <div class="field" id="f-bits">
+                <label class="field-label">Bit depth <span class="info" data-tip="Only for lossless and uncompressed formats.&#10;16-bit = CD quality, plenty for listening.&#10;24-bit = studio masters; keep it if the source is 24-bit.&#10;'Keep' picks 24-bit when the source has more than 16.">i</span></label>
+                <select class="select" id="s-bits"><option value="keep">Keep</option><option value="16">16-bit (CD)</option><option value="24">24-bit</option><option value="32">32-bit float</option></select>
+              </div>
+            </div>
+            <div class="checks">
+              <label class="check"><input type="checkbox" id="s-normalize"> Even out loudness
+                <span class="info" data-tip="Makes every song come out at the same loudness so you don't have to keep changing the volume.&#10;&#10;-14 LUFS = Spotify/YouTube level, -16 = Apple Music and podcasts, -23 = broadcast (quiet).&#10;&#10;Changes the audio itself. If you only play in iTunes, its own 'Sound Check' does this without touching the file.">i</span></label>
+              <div class="field hidden" id="f-loud" style="margin-left:21px">
+                <select class="select" id="s-loud"><option value="-14">-14 LUFS (Spotify / YouTube)</option><option value="-16">-16 LUFS (Apple Music / podcasts)</option><option value="-23">-23 LUFS (broadcast)</option></select>
+              </div>
+              <label class="check"><input type="checkbox" id="s-trim"> Trim silence at the start and end
+                <span class="info" data-tip="Cuts dead air before the first sound and after the last one. Quiet fade-outs are kept.">i</span></label>
+            </div>
+          </div>
+        </details>
+
+        <details class="panel" open id="p-tags">
+          <summary>Tags &amp; album art <span class="sum-note" id="sum-tags"></span></summary>
+          <div class="panel-body">
+            <div class="checks">
+              <label class="check"><input type="checkbox" id="s-keeptags"> Keep tags (artist, title, album, track #, lyrics…)
+                <span class="info" data-tip="Copies every tag from the original file into the new one: artist, title, album, album artist, genre, year, track and disc numbers, composer, lyrics, comments and ReplayGain.&#10;&#10;Works across formats, e.g. Opus tags into an M4A that iTunes reads. Tags describing the old encoding are dropped.">i</span></label>
+              <label class="check"><input type="checkbox" id="s-keepcover"> Keep album art
+                <span class="info" data-tip="Copies the embedded cover picture into the new file without recompressing it.&#10;&#10;WAV, WMA and AC3 can't hold album art; use AIFF instead of WAV if you want art in iTunes.&#10;&#10;No cover at all? Use the Tag Fixer tab to find one online.">i</span></label>
+              <label class="check"><input type="checkbox" id="s-autotags"> Check tags in the Tag Fixer when done
+                <span class="info" data-tip="After converting, the new files open in the Tag Fixer, which looks them up online and suggests the correct artist, title, album and cover for you to approve.">i</span></label>
+            </div>
+            <div class="note warn hidden" id="tags-warn"></div>
+          </div>
+        </details>
+
+        <details class="panel" open id="p-output">
+          <summary>Output &amp; naming <span class="sum-note" id="sum-output"></span></summary>
+          <div class="panel-body">
+            <div class="field">
+              <label class="field-label">Save to <span class="info" data-tip="Same folder: each new file goes next to its original.&#10;Choose folder: everything goes into one folder you pick. Tick 'Keep subfolders' to rebuild the folder tree of folders you added.">i</span></label>
+              <div class="seg" id="s-outmode"><button data-v="source">Same folder as source</button><button data-v="folder">Choose folder</button></div>
+            </div>
+            <div class="field hidden" id="f-outdir">
+              <div class="path-row"><input class="input" id="s-outdir" readonly placeholder="Click to choose a folder…"><button class="mini-btn" id="s-outdir-open" data-tip="Open this folder">↗</button></div>
+              <label class="check" style="margin-top:4px"><input type="checkbox" id="s-structure"> Keep subfolders of added folders</label>
+            </div>
+            <div class="field">
+              <label class="field-label">File name <span class="info" data-tip="Build names from the file's tags. Use / for subfolders.&#10;&#10;{artist} {title} {album} {albumartist} {track} {disc} {year} {genre} {name}&#10;{name} is the original file name. {track} is padded to 2 digits.&#10;&#10;If a tag the pattern needs is missing, the original name is kept.">i</span></label>
+              <select class="select" id="s-template">
+                <option value="">Keep original name</option>
+                <option value="{artist} - {title}">Artist - Title</option>
+                <option value="{track} {title}">01 Title</option>
+                <option value="{track} - {artist} - {title}">01 - Artist - Title</option>
+                <option value="{albumartist}/{album}/{track} {title}">Artist\Album\01 Title (iTunes style)</option>
+                <option value="custom">Custom pattern…</option>
+              </select>
+              <input class="input mono hidden" id="s-template-custom" placeholder="{artist} - {title}">
+            </div>
+            <div class="grid2">
+              <div class="field"><label class="field-label">Prefix</label><input class="input mono" id="s-prefix" placeholder="none"></div>
+              <div class="field"><label class="field-label">Suffix <span class="info" data-tip="Added to the end of the name, before the extension. Leave it empty and pick 'Overwrite' below to replace files of the same type in place.">i</span></label><input class="input mono" id="s-suffix" placeholder="none"></div>
+            </div>
+            <div class="field">
+              <label class="field-label">If the file already exists <span class="info" data-tip="Add a number: keeps both, e.g. 'Song (2).mp3'.&#10;Overwrite: replaces it. The new file is written first and only swapped in once it's complete, so a failed conversion never destroys the old one.&#10;Skip: leaves the existing file alone.">i</span></label>
+              <select class="select" id="s-conflict"><option value="number">Add a number</option><option value="overwrite">Overwrite</option><option value="skip">Skip the file</option></select>
+            </div>
+            <div class="example" id="name-example"></div>
+            <div class="checks">
+              <label class="check"><input type="checkbox" id="s-delete"> Delete originals when done
+                <span class="info" data-tip="After a file converts successfully and is checked, the original goes to the Recycle Bin, so you can still get it back.&#10;Files that fail are never touched.">i</span></label>
+              <label class="check"><input type="checkbox" id="s-open"> Open the folder when done</label>
+              <label class="check" id="lbl-itunes"><input type="checkbox" id="s-itunes"> Add to iTunes
+                <span class="info" id="itunes-tip" data-tip="Copies each finished file into iTunes' 'Automatically Add to iTunes' folder. iTunes picks them up and files them into your library by artist and album, artwork included.&#10;&#10;Only for formats iTunes plays: MP3, AAC, Apple Lossless, AIFF, WAV.">i</span></label>
+            </div>
+            <div class="field">
+              <label class="field-label">Files at once <span class="info" data-tip="How many files convert at the same time. More is faster on a modern CPU. Drop it to 1 if the PC needs to stay responsive.">i</span></label>
+              <select class="select" id="s-parallel"><option>1</option><option>2</option><option>3</option><option>4</option><option>6</option><option>8</option></select>
+            </div>
+          </div>
+        </details>
+      </div>
+    </div>
+  </div>
+
+  <!-- ══ TAG FIXER ══ -->
+  <div class="tab-panel" id="tab-tags">
+    <div class="tag-toolbar">
+      <button class="btn" id="tags-add-files">Add Files</button>
+      <button class="btn secondary" id="tags-add-folder">Add Folder</button>
+      <button class="btn secondary" id="tags-scan" data-tip="Look up every file online and suggest the right tags and cover. Nothing is saved until you accept.">🔎 Find tags for all</button>
+      <button class="btn ok" id="tags-accept-all" disabled data-tip="Save every suggestion that is 90% sure or more. Check the rest by hand.">✓ Accept all ≥ 90%</button>
+      <span class="spacer"></span>
+      <label class="check" data-tip="Only list files missing an artist, title, album or cover"><input type="checkbox" id="tags-only-missing"> Only files that need work</label>
+      <button class="mini-btn danger" id="tags-clear">Clear</button>
+    </div>
+    <div class="tag-body">
+      <div class="tag-list-col">
+        <div class="drop-zone" id="tags-drop" style="padding:9px 12px"><div class="drop-icon" style="font-size:18px">🏷️</div><div class="drop-copy"><h2 style="font-size:12px">Drop files to check</h2><p>MP3 · M4A · FLAC · OGG · OPUS · AIFF · WAV</p></div></div>
+        <div class="list-header"><span class="section-title" id="tags-title">Files — 0</span></div>
+        <ul class="scroll-list" id="tags-list"></ul>
+      </div>
+      <div class="tag-detail" id="tag-detail">
+        <div class="empty-state">
+          <div class="empty-icon">🏷️</div>
+          <div class="empty-title">Pick a file to check its tags</div>
+          <div class="empty-sub">Files you convert can come here automatically.<br>“Find tags for all” looks every file up on iTunes and Deezer,<br>then asks you to confirm before anything is saved.</div>
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <!-- ══ HISTORY ══ -->
+  <div class="tab-panel" id="tab-history">
+    <div class="hist-toolbar">
+      <div id="hist-chips" style="display:flex;gap:6px;flex-wrap:wrap"></div>
+      <span style="flex:1"></span>
+      <input class="input" id="hist-search" placeholder="Search the log…" style="width:220px">
+      <button class="mini-btn" id="hist-export">Export…</button>
+      <button class="mini-btn" id="hist-folder" data-tip="Open the folder where settings and this log are stored">Data folder</button>
+      <button class="mini-btn danger" id="hist-clear">Clear</button>
+    </div>
+    <div class="totals" id="hist-stats"></div>
+    <ul class="scroll-list" id="hist-list"></ul>
+  </div>
+
+  <!-- ══ GUIDE ══ -->
+  <div class="tab-panel" id="tab-guide">
+    <div class="doc-scroll">
+      <div class="doc">
+        <div class="card">
+          <h3>🚀 Quick start</h3>
+          <ul>
+            <li>Drop songs or a whole folder onto the <strong>Convert</strong> tab.</li>
+            <li>Pick a preset on the right. For iTunes, <strong>iTunes AAC 256</strong> is the same quality the iTunes Store sells; <strong>Apple Lossless</strong> if you want a perfect copy.</li>
+            <li>Choose where the files go and how they're named, then press <strong>Convert All</strong>.</li>
+            <li>Tick <em>Check tags in the Tag Fixer when done</em> to have missing artist, album and cover info looked up afterwards.</li>
+          </ul>
+          <p>Hover over any <span class="info" style="display:inline-flex">i</span> for an explanation of that setting.</p>
+        </div>
+
+        <div class="card">
+          <h3>🎚️ Which format should I pick?</h3>
+          <table>
+            <tr><th>Format</th><th>Type</th><th>iTunes</th><th>Album art</th><th>Best for</th></tr>
+            <tr><td><strong>AAC (.m4a)</strong></td><td>Lossy</td><td>✓</td><td>✓</td><td>iTunes, iPhone, Apple Music. Better than MP3 at the same size.</td></tr>
+            <tr><td><strong>MP3</strong></td><td>Lossy</td><td>✓</td><td>✓</td><td>Playing anywhere: old players, cars, Android, websites.</td></tr>
+            <tr><td><strong>Apple Lossless</strong></td><td>Lossless</td><td>✓</td><td>✓</td><td>A perfect copy of a CD or FLAC that iTunes can play.</td></tr>
+            <tr><td><strong>FLAC</strong></td><td>Lossless</td><td>✗</td><td>✓</td><td>Archiving. Smallest perfect copy. Not playable in iTunes.</td></tr>
+            <tr><td><strong>AIFF</strong></td><td>Uncompressed</td><td>✓</td><td>✓</td><td>Uncompressed audio in iTunes with tags and artwork.</td></tr>
+            <tr><td><strong>WAV</strong></td><td>Uncompressed</td><td>✓</td><td>✗</td><td>Editing software, CD burning. Basic tags only; iTunes ignores them.</td></tr>
+            <tr><td><strong>Opus</strong></td><td>Lossy</td><td>✗</td><td>✓</td><td>Smallest good-sounding files, voice, sharing.</td></tr>
+            <tr><td><strong>Ogg Vorbis</strong></td><td>Lossy</td><td>✗</td><td>✓</td><td>Games and apps that ask for .ogg.</td></tr>
+            <tr><td><strong>Audiobook (.m4b)</strong></td><td>Lossy</td><td>✓</td><td>✓</td><td>Audiobooks: iTunes files them separately and remembers your place.</td></tr>
+            <tr><td><strong>WMA / AC3</strong></td><td>Lossy</td><td>✗</td><td>✗</td><td>Only when an old device or a DVD project needs it.</td></tr>
+          </table>
+        </div>
+
+        <div class="card">
+          <h3>🎛️ What the quality slider really does</h3>
+          <p>Every lossy format reads the same 0–100 slider and turns it into its own setting. The box under the slider always shows the exact result. Some reference points:</p>
+          <table>
+            <tr><th>Slider</th><th>MP3 (VBR)</th><th>AAC</th><th>Opus</th><th>What it sounds like</th></tr>
+            <tr><td>100</td><td>V0 ≈ 245 kbps</td><td>320 kbps</td><td>256 kbps</td><td>Best the format can do. Larger than you need.</td></tr>
+            <tr><td>85</td><td>V1 ≈ 225 kbps</td><td>256 kbps</td><td>192 kbps</td><td>Transparent: same as the source to nearly everyone.</td></tr>
+            <tr><td>60</td><td>V4 ≈ 165 kbps</td><td>192 kbps</td><td>128 kbps</td><td>Very good. Great for phones.</td></tr>
+            <tr><td>30</td><td>V6 ≈ 115 kbps</td><td>128 kbps</td><td>64 kbps</td><td>OK for music on small speakers; good for voice.</td></tr>
+            <tr><td>0</td><td>V9 ≈ 65 kbps</td><td>64 kbps</td><td>32 kbps</td><td>Speech only.</td></tr>
+          </table>
+          <p><strong>Quality only goes down, never up.</strong> If the original is a 128 kbps MP3, setting 100 makes a bigger file that still sounds like 128 kbps. The queue warns you when that happens. For lossless formats the slider does nothing, since nothing is thrown away.</p>
+        </div>
+
+        <div class="card">
+          <h3>🏷️ Tags, album art and iTunes</h3>
+          <p>TuneForge copies all tags and the embedded cover from the original into the converted file, including between formats that store them differently (for example Opus/Ogg tags into an M4A or MP3). Each finished file is read back to check the cover made it.</p>
+          <p>MP3s are written with ID3v2.3 tags, the version iTunes and Windows Explorer read most reliably. M4A files use the same tag layout as iTunes Store purchases.</p>
+          <p><strong>Add to iTunes</strong> copies finished files into iTunes' “Automatically Add to iTunes” folder. iTunes then imports them into your library within a few seconds, sorted by artist and album with their artwork.</p>
+        </div>
+
+        <div class="card">
+          <h3>🔎 How the Tag Fixer works</h3>
+          <ul>
+            <li>It reads the file's tags. If they're missing or junk ("Unknown Artist", "Track 01", website names), it works out the artist and title from the filename, removing things like <code>(Official Video)</code>, <code>[Lyrics]</code>, <code>320kbps</code>, track numbers and YouTube IDs.</li>
+            <li>It searches <strong>iTunes</strong> and <strong>Deezer</strong> (both free, no account) and scores each match by title, artist and song length, so live versions, karaoke and cover versions rank lower.</li>
+            <li>It shows what it found and how sure it is. <strong>Nothing is written until you press Accept.</strong> You can edit any field, pick another match or type your own search.</li>
+            <li>For artwork you get the album covers from the matches (up to 1200×1200) plus an <strong>artist photo</strong> for songs with no album.</li>
+            <li>Optional: <strong>audio fingerprinting</strong> (Settings) recognises the song from its sound, like Shazam, for files with no useful name at all. It needs a free AcoustID key.</li>
+            <li>You can also rename files from their new tags, or sort them into <code>Artist\Album\01 Title</code> folders.</li>
+          </ul>
+        </div>
+
+        <div class="card">
+          <h3>⌨️ Shortcuts</h3>
+          <table>
+            <tr><td><code>Ctrl+O</code></td><td>Add files</td></tr>
+            <tr><td><code>Ctrl+Enter</code></td><td>Convert all (Convert tab) · Accept (Tag Fixer)</td></tr>
+            <tr><td><code>Esc</code></td><td>Stop converting · close a dialog</td></tr>
+            <tr><td><code>↑ / ↓</code></td><td>Previous / next file in the Tag Fixer</td></tr>
+            <tr><td><code>Ctrl+1…5</code></td><td>Switch tabs</td></tr>
+          </table>
+        </div>
+
+        <div class="card">
+          <h3>💡 Tips</h3>
+          <ul>
+            <li>Keep a lossless master (FLAC or Apple Lossless) and make lossy copies from it. Converting MP3 → AAC → MP3 loses quality every time.</li>
+            <li>If you only listen in iTunes, turn on iTunes' own <em>Sound Check</em> instead of “Even out loudness”; it adjusts playback without changing the files.</li>
+            <li>Dropping a video file (MP4, MKV, MOV…) pulls its soundtrack out as audio.</li>
+            <li>Everything TuneForge does is listed in <strong>History</strong>, including the exact error when a file fails.</li>
+          </ul>
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <!-- ══ SETTINGS ══ -->
+  <div class="tab-panel" id="tab-settings">
+    <div class="doc-scroll">
+      <div class="doc">
+        <div class="card">
+          <h3>🎨 Appearance &amp; window</h3>
+          <div class="set-row"><div class="set-text"><div class="set-name">Theme</div><div class="set-desc">System follows your Windows light/dark setting.</div></div>
+            <div class="set-ctl"><select class="select" id="set-theme"><option value="system">System</option><option value="light">Light</option><option value="dark">Dark</option></select></div></div>
+          <div class="set-row"><div class="set-text"><div class="set-name">Always on top</div><div class="set-desc">Same as the pin button in the title bar.</div></div>
+            <div class="set-ctl"><label class="switch"><input type="checkbox" id="set-pin"><span></span></label></div></div>
+        </div>
+
+        <div class="card">
+          <h3>🔄 Updates</h3>
+          <div class="set-row"><div class="set-text"><div class="set-name">Check for updates when TuneForge starts</div><div class="set-desc" id="set-update-desc">Checks GitHub releases, at most once a day.</div></div>
+            <div class="set-ctl"><label class="switch"><input type="checkbox" id="set-autoupdate"><span></span></label></div></div>
+          <div class="set-row"><div class="set-text"><div class="set-name">Version <span id="set-version" style="font-family:var(--mono)"></span></div><div class="set-desc" id="set-update-status">Not checked yet.</div></div>
+            <div class="set-ctl"><button class="btn ghost small" id="set-changelog">What's new</button><button class="btn secondary small" id="set-check">Check now</button></div></div>
+        </div>
+
+        <div class="card">
+          <h3>🍎 iTunes</h3>
+          <div class="set-row"><div class="set-text"><div class="set-name">“Automatically Add to iTunes” folder</div><div class="set-desc" id="set-itunes-desc" style="font-family:var(--mono);word-break:break-all"></div></div>
+            <div class="set-ctl"><button class="btn ghost small" id="set-itunes-open">Open</button><button class="btn secondary small" id="set-itunes-pick">Change…</button></div></div>
+        </div>
+
+        <div class="card">
+          <h3>🔎 Tag Fixer lookups</h3>
+          <div class="set-row"><div class="set-text"><div class="set-name">iTunes Store region</div><div class="set-desc">Which country's catalogue to search. Affects album names, genres and what's available.</div></div>
+            <div class="set-ctl"><select class="select" id="set-country">
+              <option value="us">United States</option><option value="gb">United Kingdom</option><option value="ca">Canada</option><option value="au">Australia</option>
+              <option value="in">India</option><option value="pk">Pakistan</option><option value="ae">UAE</option><option value="de">Germany</option><option value="fr">France</option>
+              <option value="es">Spain</option><option value="it">Italy</option><option value="nl">Netherlands</option><option value="br">Brazil</option><option value="mx">Mexico</option>
+              <option value="jp">Japan</option><option value="kr">South Korea</option></select></div></div>
+          <div class="set-row"><div class="set-text"><div class="set-name">Audio fingerprinting (AcoustID)</div>
+              <div class="set-desc">Identifies songs by their sound, for files with no useful name or tags. Needs a free API key: sign in at acoustid.org, register an application, and paste its key here.</div></div>
+            <div class="set-ctl" style="flex-direction:column;align-items:flex-end">
+              <input class="input mono" id="set-acoustid" placeholder="AcoustID application key">
+              <div style="display:flex;gap:8px;align-items:center"><button class="link-btn" id="set-acoustid-link">Get a key ↗</button><label class="switch"><input type="checkbox" id="set-fp"><span></span></label></div>
+            </div></div>
+          <div class="set-row"><div class="set-text"><div class="set-name">After saving tags</div><div class="set-desc">What to do with the file name when you accept tags.</div></div>
+            <div class="set-ctl"><select class="select" id="set-rename"><option value="keep">Keep the file name</option><option value="rename">Rename to “Artist - Title”</option><option value="organize">Move into Artist\Album folders</option></select></div></div>
+          <div class="set-row hidden" id="set-organize-row"><div class="set-text"><div class="set-name">Music folder for sorting</div><div class="set-desc" id="set-organize-desc" style="font-family:var(--mono)">Not set: files are sorted into folders next to where they are.</div></div>
+            <div class="set-ctl"><button class="btn secondary small" id="set-organize-pick">Choose…</button></div></div>
+        </div>
+
+        <div class="card">
+          <h3>📁 Data</h3>
+          <div class="set-row"><div class="set-text"><div class="set-name">Settings and log folder</div><div class="set-desc" id="set-data" style="font-family:var(--mono);word-break:break-all"></div></div>
+            <div class="set-ctl"><button class="btn ghost small" id="set-data-open">Open</button></div></div>
+          <div class="set-row"><div class="set-text"><div class="set-name">Reset converter options</div><div class="set-desc">Puts format, quality, naming and output options back to defaults. Your saved presets stay.</div></div>
+            <div class="set-ctl"><button class="btn ghost small" id="set-reset">Reset</button></div></div>
+        </div>
+      </div>
+    </div>
+  </div>
+</div>
+
+<!-- Modals -->
+<div class="overlay" id="modal-changelog">
+  <div class="modal">
+    <header><span id="cl-title">Version history</span><button data-close>✕</button></header>
+    <div class="m-body cl" id="cl-body"></div>
+    <div class="m-foot"><span id="cl-update" style="flex:1;font-size:12px;color:var(--muted);align-self:center"></span><button class="btn secondary small" id="cl-check">Check for updates</button><button class="btn small" data-close>Close</button></div>
+  </div>
+</div>
+<div class="overlay" id="modal-preset">
+  <div class="modal" style="width:min(400px,90vw)">
+    <header><span>Save preset</span><button data-close>✕</button></header>
+    <div class="m-body" style="display:flex;flex-direction:column;gap:8px">
+      <label class="field-label">Name</label>
+      <input class="input" id="preset-name" maxlength="28" placeholder="e.g. Car USB stick">
+      <div class="note" id="preset-summary"></div>
+    </div>
+    <div class="m-foot"><button class="btn ghost small" data-close>Cancel</button><button class="btn small" id="preset-name-ok">Save</button></div>
+  </div>
+</div>
+<div class="overlay" id="modal-confirm">
+  <div class="modal" style="width:min(440px,90vw)">
+    <header><span id="confirm-title">Are you sure?</span><button data-close>✕</button></header>
+    <div class="m-body" id="confirm-body"></div>
+    <div class="m-foot"><button class="btn ghost small" data-close>Cancel</button><button class="btn small" id="confirm-ok">OK</button></div>
+  </div>
+</div>
+
+<div id="tip"></div>
+<div id="toast"></div>
+<script src="formats.js"></script>
+<script src="renderer.js"></script>
+</body>
+</html>

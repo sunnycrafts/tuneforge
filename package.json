@@ -1,0 +1,39 @@
+{
+  "name": "tuneforge",
+  "version": "1.0.0",
+  "description": "Audio converter that keeps your tags and album art, and fixes the ones that are missing",
+  "main": "main.js",
+  "author": "Sunny Parikh",
+  "scripts": {
+    "start": "electron .",
+    "build": "electron-builder --win --x64"
+  },
+  "build": {
+    "appId": "com.sunnycrafts.tuneforge",
+    "productName": "TuneForge",
+    "directories": { "output": "dist" },
+    "files": ["main.js", "preload.js", "media.js", "lookup.js", "formats.js", "index.html", "renderer.js", "CHANGELOG.md", "assets/**"],
+    "extraResources": [
+      { "from": "resources/ffmpeg.exe",  "to": "ffmpeg.exe" },
+      { "from": "resources/ffprobe.exe", "to": "ffprobe.exe" }
+    ],
+    "win": {
+      "target": [
+        { "target": "nsis", "arch": ["x64"] },
+        { "target": "portable", "arch": ["x64"] }
+      ],
+      "icon": "assets/icon.ico"
+    },
+    "nsis": {
+      "oneClick": false,
+      "allowToChangeInstallationDirectory": true,
+      "createDesktopShortcut": true,
+      "createStartMenuShortcut": true,
+      "include": "build/installer.nsh"
+    }
+  },
+  "devDependencies": {
+    "electron": "^28.0.0",
+    "electron-builder": "^24.0.0"
+  }
+}
